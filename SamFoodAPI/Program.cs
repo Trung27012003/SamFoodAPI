@@ -28,6 +28,7 @@ builder.Services.AddScoped<PromotionRepo>();
 builder.Services.AddScoped<HistorySearchRepo>();
 builder.Services.AddScoped<BannerRepo>();
 builder.Services.AddScoped<BannerDetailRepo>();
+builder.Services.AddScoped<SiteSettingRepo>();
 
 builder.Services.AddScoped<CurrentUser>(provider =>
 {

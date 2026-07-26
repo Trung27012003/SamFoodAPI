@@ -24,13 +24,12 @@ namespace SamFoodAPI.Controllers
 
 
         [HttpGet()]
-        [RequiresPermission("N1")]
         public async Task<IActionResult> GetAll(string? keyword)
         {
             try
             {
                 var data = _invoiceRepo.GetAll(x=>x.IsDeleted != true);
-                //var data = await SqlDapper<object>.ProcedureToListAsync("spGetInvoice", new { keyword = keyword ?? "" });
+                // var data = await SqlDapper<object>.ProcedureToListAsync("spGetInvoice", new { keyword = keyword ?? "" });
                 return Ok(ApiResponseFactory.Success(data));
             }
             catch (Exception ex)
@@ -39,8 +38,21 @@ namespace SamFoodAPI.Controllers
             }
         }
 
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetStats()
+        {
+            try
+            {
+                var data = _invoiceRepo.GetStats();
+                return Ok(ApiResponseFactory.Success(data, "Lấy thống kê đơn hàng thành công"));
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ApiResponseFactory.Fail(ex, ex.Message));
+            }
+        }
+
         [HttpGet("{id}")]
-        [RequiresPermission("N1")]
         public async Task<IActionResult> GetByID(int id)
         {
             try

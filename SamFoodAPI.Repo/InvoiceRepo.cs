@@ -1,4 +1,5 @@
-﻿using SamFoodAPI.Model.DTO;
+﻿using SamFoodAPI.Model.Common;
+using SamFoodAPI.Model.DTO;
 using SamFoodAPI.Model.Entities;
 using System;
 using System.Collections.Generic;
@@ -39,6 +40,14 @@ namespace SamFoodAPI.Repo
             billCode = $"{prefix}{stt}";
 
             return billCode;
+        }
+
+        public InvoiceStatsDTO GetStats()
+        {
+            return SqlDapper<InvoiceStatsDTO>
+                .ProcedureToModelAsync("spGetInvoiceStats", null)
+                .GetAwaiter()
+                .GetResult();
         }
     }
 }

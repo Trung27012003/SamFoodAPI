@@ -34,11 +34,13 @@ public partial class SamFoodContext : DbContext
 
     public virtual DbSet<RoleUser> RoleUsers { get; set; }
 
-    public virtual DbSet<Banner> Banners { get; set; }
+        public virtual DbSet<Banner> Banners { get; set; }
 
-    public virtual DbSet<BannerDetail> BannerDetails { get; set; }
+        public virtual DbSet<BannerDetail> BannerDetails { get; set; }
 
-    public virtual DbSet<UnitCount> UnitCounts { get; set; }
+        public virtual DbSet<SiteSetting> SiteSettings { get; set; }
+
+        public virtual DbSet<UnitCount> UnitCounts { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
@@ -350,6 +352,36 @@ public partial class SamFoodContext : DbContext
             entity.Property(e => e.LinkURL).HasMaxLength(1000);
             entity.Property(e => e.SortOrder).HasDefaultValue(0);
             entity.Property(e => e.UpdatedDate).HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<SiteSetting>(entity =>
+        {
+            entity.ToTable("SiteSetting");
+
+            entity.Property(e => e.CreatedDate).HasColumnType("datetime");
+            entity.Property(e => e.SettingKey)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.ValueType)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.Group)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+            entity.Property(e => e.IsPublic).HasDefaultValue(true);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.UpdatedDate).HasColumnType("datetime");
+
+            entity.HasIndex(e => e.SettingKey).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);
