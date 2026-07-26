@@ -1,0 +1,124 @@
+﻿using Microsoft.AspNetCore.Authorization;
+using SamFoodAPI.Attributes;
+using SamFoodAPI.IRepo;
+using SamFoodAPI.Model.Common;
+using System.Security.Claims;
+using System.Text.Json;
+
+namespace SamFoodAPI.Middleware
+{
+    public class DynamicAuthorizationMiddleware
+    {
+        private readonly RequestDelegate _next;
+
+        public DynamicAuthorizationMiddleware(RequestDelegate next, IConfiguration configuration)
+        {
+            _next = next;
+        }
+
+        public async Task InvokeAsync(HttpContext context, IUserPermissionService permissionService)
+        {
+            var endpoint = context.GetEndpoint();
+
+            // 🔹 Check xem có gắn [RequiresPermission] hoặc [Authorize]
+            var permissionAttributes = endpoint?.Metadata.GetOrderedMetadata<RequiresPermissionAttribute>();
+            var authorizeAttribute = endpoint?.Metadata.GetOrderedMetadata<AuthorizeAttribute>();
+
+            // If no authorization attributes, just continue
+            if (authorizeAttribute == null || authorizeAttribute.Count == 0)
+            {
+                await _next(context);
+                return;
+            }
+
+            // Authorization required from here
+            bool? isAuthen = context.User.Identity?.IsAuthenticated;
+
+            // Check có token không
+            var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                context.Response.ContentType = "application/json; charset=utf-8";
+                var response = JsonSerializer.Serialize(ApiResponseFactory.Unauthorized("Vui lòng đăng nhập!"));
+                await context.Response.WriteAsync(response);
+                return;
+            }
+
+            // Check còn hạn không
+            long expClaims = Convert.ToInt64(context.User.Claims.FirstOrDefault(c => c.Type == "exp")?.Value);
+            DateTime expires = DateTimeOffset.FromUnixTimeSeconds(expClaims).UtcDateTime.AddHours(+7);
+            expires = new DateTime(expires.Year, expires.Month, expires.Day, expires.Hour, expires.Minute, 0);
+            DateTime now = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, DateTime.Now.Hour, DateTime.Now.Minute, 0);
+
+            if (now > expires)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                var response = JsonSerializer.Serialize(ApiResponseFactory.Unauthorized("Expired!"));
+                await context.Response.WriteAsync(response);
+                return;
+            }
+
+            var isCandidateClaim = context.User.FindFirst("iscandidate")?.Value;
+            bool isCandidateToken = bool.TryParse(isCandidateClaim, out bool parsed) && parsed;
+
+            // Nếu Token là ứng viên VÀ Hệ thống đang cấu hình chặn ứng viên (IsCandidate = true)
+            if (isCandidateToken)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                context.Response.ContentType = "application/json; charset=utf-8";
+                var response = JsonSerializer.Serialize(ApiResponseFactory.Unauthorized("Bạn không có quyền!"));
+                await context.Response.WriteAsync(response);
+                return;
+            }
+
+            // Check là admin không
+            var isAdminClaim = context.User.FindFirst("isadmin")?.Value;
+            if (!string.IsNullOrEmpty(isAdminClaim) && bool.TryParse(isAdminClaim, out bool isAdmin) && isAdmin)
+            {
+                await _next(context);
+                return;
+            }
+
+            // Check có mã quyền không
+            if (permissionAttributes != null && permissionAttributes.Count > 0)
+            {
+                foreach (var attr in permissionAttributes)
+                {
+                    // Add null check to prevent ObjectDisposedException
+                    if (permissionService == null)
+                    {
+                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                        var response = JsonSerializer.Serialize(ApiResponseFactory.Unauthorized("Service unavailable"));
+                        await context.Response.WriteAsync(response);
+                        return;
+                    }
+
+                    try
+                    {
+                        var hasPermission = await permissionService.HasPermissionAsync(userId, attr.permission);
+                        if (!hasPermission)
+                        {
+                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                            context.Response.ContentType = "application/json; charset=utf-8";
+                            var response = JsonSerializer.Serialize(ApiResponseFactory.Unauthorized("Bạn không có quyền!"));
+                            await context.Response.WriteAsync(response);
+                            return;
+                        }
+                    }
+                    catch (ObjectDisposedException ex)
+                    {
+                        // Log the error here
+                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                        var response = JsonSerializer.Serialize(ApiResponseFactory.Unauthorized("Service temporarily unavailable"));
+                        await context.Response.WriteAsync(response);
+                        return;
+                    }
+                }
+            }
+
+            // Only ONE call to _next at the end
+            await _next(context);
+        }
+    }
+}
